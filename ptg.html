@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style type="text/css">
+    #top {display: flex;flex-direction: row;flex-grow:1;width: 100%}
+    #main {display: flex;flex-direction: column}
+    #entries {width: 100%;min-width: 600px}
+    #template {display: flex;flex-direction: column;overflow:auto; font-family: monospace;width: 100%}
+    #iSchemaName {width: 500px}
+    .iFieldName, .iShortName {width: 250px}
+    .iFieldOrder,.iFieldPrint,.iFieldMsgKeys {width: 50px}
+    .iFieldMsgKeys, .iFieldOrderField, .iFieldDateField {width: 100px}
+    .iField {display: flex;flex-direction: row;flex-grow:1;width: 100%}
+    #Header1 {display: inline-flex;flex-direction: row;}
+    div.iFieldName, div.iShortName, div.iFieldPrint {padding-right: 10px}
+    div.iFieldPrint, div.iFieldDateField, div.iFieldOrderField {text-align: center}
+</style>
+</head>
+<body>
+<div id="top">
+    Schema name: <input id="iSchemaName" />
+    <button type="button" onclick="process_schema();">Process schema</button>
+    <button type="button" onclick="show_hide_ta();">Show/Hide input area</button>
+    <input id="chDefaultMetadata" type="checkbox" value="1" checked onchange="set_default_metadata();"/>Default metadata import properties
+</div>
+<textarea id="input_area" rows="48" cols="160">
+</textarea>
+<div id="main">
+    <div id="entries"></div>
+    <div id="template"></div>
+</div>
+<script type="text/javascript">
+
+var regKeys = /^(\s+)([^\n:]*)(:\s*)/gm;
+var regDef = /(?:\#\/definitions\/)/
+var entries_div = document.getElementById('entries');
+var template_div = document.getElementById('template');
+
+function show_hide_ta(){
+    var TA = document.getElementById('input_area');
+    if(TA.style.display == 'block')
+        TA.style.display = 'none';
+    else
+        TA.style.display = 'block';
+}
+
+function process_schema(){
+    ta = document.getElementById('input_area');
+    ta.style.display = 'none';
+    schema_processed = ta.value.replace(regKeys,'$1"$2"$3').replace(/\\/g,'\\\\');
+    entries_div.innerHTML = '<div id="Header1"><div class="iFieldName">field_name</div><div class="iShortName">short_name</div>'
+                            + '<div class="iFieldPrint">print</div><div class="iFieldOrder">order</div><div class="iFieldMsgKeys">msg_keys</div>'
+                            + '<div class="iFieldOrderField">order_field</div><div class="iFieldDateField">date_field</div> Original field name</div>';
+    var schema = JSON.parse(schema_processed);
+    add_group('/metadata/');
+    add_field('/metadata/','occurred_at');
+    add_field('/metadata/','eid');
+    add_field('/metadata/','flow_id');
+    add_field('/metadata/','received_at');
+
+    process_props('/', schema.properties, schema.definitions);
+    var paths = entries_div.querySelectorAll('.iPath');
+    for (var p of paths) {
+        var fields = p.querySelectorAll('.iField');
+        var selectorLength = fields.length;
+        for (var j = 0; j < fields.length; j++){
+            f = fields[j]
+            f.querySelector('.iFieldName').value = f.id.replace(/(.*\/)([^\/]*)$/,'$2');
+            f.querySelector('.iShortName').value = f.id.replace(/(.*\/)([^\/]*)$/,'$2');
+            orderList = f.querySelector('.iFieldOrder')
+            for (var i = 1; i <= selectorLength; i++) {
+                var option = document.createElement("option");
+                option.value = i;
+                option.text = i;
+                orderList.appendChild(option);
+            }
+            orderList.value = j + 1;
+        }
+    }
+    if (document.getElementById('chDefaultMetadata').checked){
+        document.getElementById('/metadata/occurred_at').querySelector('.iFieldOrderField').checked = true;
+        document.getElementById('/metadata/occurred_at').querySelector('.iFieldDateField').checked = true;
+        document.getElementById('/metadata/flow_id').querySelector('.iFieldPrint').checked = false;
+        document.getElementById('/metadata/received_at').querySelector('.iFieldPrint').checked = false;
+    }
+    add_div('entries', 'bTemplate', 'build_template','<button type="button" onclick="build_template()">Build template</button>');
+}
+
+function process_props(path, props, defs){
+    if (document.getElementById(path) == undefined)
+        add_group(path);
+    for (p in props) {
+        if (props[p].hasOwnProperty('type'))
+            if (props[p].type == 'array')
+                if (props[p].items.hasOwnProperty('$ref'))
+                    process_props(path + p + '/', defs[props[p]['items']['$ref'].replace(regDef, '')].properties, defs);
+                else if (props[p].items.hasOwnProperty('type') && props[p].items.type == 'object')
+                    process_props(path + p + '/', props[p].items.properties, defs);
+                else add_field(path, p + ' ****ARRAY****');
+            else if (props[p].type == 'object')
+                process_props(path + p + '/', props[p].properties, defs);
+            else add_field(path, p);
+        else if (props[p].hasOwnProperty('enum'))
+            add_field(path, p);
+        else if (props[p].hasOwnProperty('$ref'))
+            process_props(path + p + '/', defs[props[p]['$ref'].replace(regDef, '')].properties, defs);
+        else add_field(path, p + ' ****UNDEFINED****');
+    }
+}
+function add_div(target,cl,id,iHTML){
+    var tmp_div = document.createElement('div');
+    tmp_div.className = cl;
+    tmp_div.id = id;
+    tmp_div.innerHTML = iHTML;
+    document.getElementById(target).appendChild(tmp_div);
+}
+function add_group(path){
+    add_div('entries', 'iPath', path, '<b>' + path.substring(1, path.length - 1) + '</b>'
+                                + '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_set_all(\''+ path +'\',true)">Check all</a>'
+                                + '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_set_all(\''+ path +'\',false)">Uncheck all</a>'
+                                + (path == '/' ? '' : '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_prefix(\''+ path +'\',true)">Add prefix</a>')
+                                + (path == '/' ? '' : '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_prefix(\''+ path +'\',false)">Remove prefix</a>'));
+}
+function add_field(path, field) {
+    add_div(path,'iField',path + field, '<input id="i' + path + field + '-field_name" class="iFieldName" />'
+                    + '<input id="i' + path + field + '-short_name" class="iShortName" />'
+                    + '<input id="i' + path + field + '-print" class="iFieldPrint" type="checkbox" checked/>'
+                    + '<select name="i' + path + field + '-order" id="i' + path + field + '-order" class="iFieldOrder""></select>'
+                    + '<select class="iFieldMsgKeys"><option value=""></option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>'
+                    + '<input class="iFieldOrderField" type="checkbox"/>'
+                    + '<input class="iFieldDateField" type="checkbox"/>'
+                    + ' ' + field);
+}
+function mod_set_all(path, state){
+    for (var f of document.getElementById(path).querySelectorAll('.iField')){
+        f.querySelector('.iFieldPrint').checked = state;
+    }
+}
+function mod_prefix(path, state){
+    p = path.substring(1, path.length - 1);
+    prefix = p.substring(p.search(/([^\/]*)$/), p.length);
+    var re = new RegExp('^' + prefix + '_','');
+    for (var f of document.getElementById(path).querySelectorAll('.iField')){
+        f.querySelector('.iShortName').value = ( state ? prefix + '_' + f.querySelector('.iShortName').value : f.querySelector('.iShortName').value.replace(re , ''));
+    }
+}
+function build_template(){
+    template_json = {"name": "",
+        "topic_name_field": "metadata/event_type",
+        "valid_from": 1492000000000,
+        "valid_until": 0,
+        "partitioning_key": "",
+        "msg_keys": [],
+        "order_field": {
+            "field_name": "",
+            "data_type": "string",
+            "format":"date-time"
+        },
+        "date_field": "",
+        "msg_meta": {
+            "object_name": "metadata",
+            "fields": []
+        },
+        "msg_objects": []};
+    object_json = {"object_name": "","fields": []};
+    field_json = {"field_name": "",
+                    "short_name": "",
+                    "order": 1,
+                    "print": true};
+
+    var paths = entries_div.querySelectorAll('.iPath');
+    for (var i = 0; i < paths.length; i++){
+        var p = paths[i];
+        var fields = p.querySelectorAll('.iField');
+        var selectorLength = fields.length;
+        var p_name =  p.id.substring(1, p.id.length - 1);
+        var object_json = {"object_name": (p_name == '/' ? '' : p_name), "fields":[]};
+        for (var j = 0; j < fields.length; j++){
+            f = fields[j]
+            var field_json = {};
+            field_json.field_name = f.querySelector('.iFieldName').value;
+            field_json.short_name = f.querySelector('.iShortName').value;
+            field_json.order = f.querySelector('.iFieldOrder').value;
+            field_json.print = f.querySelector('.iFieldPrint').checked;
+            object_json.fields[j] = field_json;
+            if (f.querySelector('.iFieldDateField').checked)
+                template_json.date_field = p_name + '/' + f.querySelector('.iFieldName').value;
+            if (f.querySelector('.iFieldOrderField').checked)
+                template_json.order_field.field_name = p_name + '/' + f.querySelector('.iFieldName').value;
+//            if (f.querySelector('.iFieldMsgKeys').value != '')
+//                template_json.msg_keys[f.querySelector('.iFieldMsgKeys').value] = p_name + '/' + f.querySelector('.iFieldName').value;
+            
+        }
+        if (p_name == 'metadata')
+            template_json.msg_meta = object_json;
+        else
+            template_json.msg_objects[i] = object_json;
+    }
+    alert(JSON.stringify(template_json, null, 4));
+}
+show_hide_ta();
+</script>
+</body>
+</html>
