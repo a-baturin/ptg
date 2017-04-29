@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <style type="text/css">
     #top {display: flex;flex-direction: row;flex-grow:1;width: 100%}
-    #entries {width: 100%;min-width: 600px}
+    #entries {width: 100%}
     #iSchemaName {width: 500px}
     .iFieldName, .iShortName {width: 250px}
     .iFieldOrder,.iFieldPrint,.iFieldMsgKeys {width: 50px}
@@ -21,7 +21,7 @@
     Schema name: <input id="iSchemaName" />
     <button type="button" onclick="process_schema();">Process schema</button>
     <button type="button" onclick="show_hide_ta();">Show/Hide input area</button>
-    <input id="chDefaultMetadata" type="checkbox" value="1" checked onchange="set_default_metadata();"/>Default metadata import properties
+    <input id="chDefaultMetadata" type="checkbox" checked />Default metadata import properties
 </div>
 <textarea id="input_area" rows="16"></textarea>
 <div id="entries"></div>
@@ -80,7 +80,7 @@ function process_schema(){
         document.getElementById('/metadata/flow_id').querySelector('.iFieldPrint').checked = false;
         document.getElementById('/metadata/received_at').querySelector('.iFieldPrint').checked = false;
     }
-    add_div('entries', 'bTemplate', 'build_template','<button type="button" onclick="build_template()">Build template</button>');
+    build_template();
 }
 
 function process_props(path, props, defs){
@@ -124,8 +124,10 @@ function add_field(path, field) {
                     + '<input class="iFieldPrint" type="checkbox" checked onchange="build_template()"/>'
                     + '<select class="iFieldOrder" onchange="field_key_switch(this)"></select>'
                     + '<select class="iFieldMsgKeys" onchange="field_key_switch(this)"><option value=""></option><option value=1>1</option><option value=2>2</option><option value=3>3</option><option value=4>4</option><option value=5>5</option></select>'
-                    + '<input class="iFieldOrderField" type="checkbox" onchange="build_template()"/>'
-                    + '<input class="iFieldDateField" type="checkbox" onchange="build_template()"/>'
+//                    + '<input class="iFieldOrderField" type="checkbox" onchange="build_template()"/>'
+//                    + '<input class="iFieldDateField" type="checkbox" onchange="build_template()"/>'
+                    + '<input type="radio" value="" class="iFieldOrderField" name="group1" onchange="build_template()"">'
+                    + '<input type="radio" value="" class="iFieldDateField" name="group2" onchange="build_template()"">'
                     + ' ' + field);
 }
 function mod_set_all(e, path, state){
