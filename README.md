@@ -6,5 +6,6 @@ Pemetaan Template Generator
 3. Edit properties as you wish. Don't forget key fields.
 4. Check template
 
-order_field datatype is set to string, change manually if you need other type.
+order_field datatype is set to string, change manually if you need other type
+
 valid_from is also a constant
