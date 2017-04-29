@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <style type="text/css">
     #top {display: flex;flex-direction: row;flex-grow:1;width: 100%}
-    #main {display: flex;flex-direction: column}
     #entries {width: 100%;min-width: 600px}
-    #template {display: flex;flex-direction: column;overflow:auto; font-family: monospace;width: 100%}
     #iSchemaName {width: 500px}
     .iFieldName, .iShortName {width: 250px}
     .iFieldOrder,.iFieldPrint,.iFieldMsgKeys {width: 50px}
@@ -15,6 +13,7 @@
     #Header1 {display: inline-flex;flex-direction: row;}
     div.iFieldName, div.iShortName, div.iFieldPrint {padding-right: 10px}
     div.iFieldPrint, div.iFieldDateField, div.iFieldOrderField {text-align: center}
+    textarea { width: 100%; }
 </style>
 </head>
 <body>
@@ -24,18 +23,15 @@
     <button type="button" onclick="show_hide_ta();">Show/Hide input area</button>
     <input id="chDefaultMetadata" type="checkbox" value="1" checked onchange="set_default_metadata();"/>Default metadata import properties
 </div>
-<textarea id="input_area" rows="48" cols="160">
-</textarea>
-<div id="main">
-    <div id="entries"></div>
-    <div id="template"></div>
-</div>
+<textarea id="input_area" rows="16"></textarea>
+<div id="entries"></div>
+<textarea id="output_area" rows="36"></textarea>
 <script type="text/javascript">
 
 var regKeys = /^(\s+)([^\n:]*)(:\s*)/gm;
 var regDef = /(?:\#\/definitions\/)/
 var entries_div = document.getElementById('entries');
-var template_div = document.getElementById('template');
+document.getElementById('output_area').style.display = 'none';
 
 function show_hide_ta(){
     var TA = document.getElementById('input_area');
@@ -69,10 +65,10 @@ function process_schema(){
             f.querySelector('.iFieldName').value = f.id.replace(/(.*\/)([^\/]*)$/,'$2');
             f.querySelector('.iShortName').value = f.id.replace(/(.*\/)([^\/]*)$/,'$2');
             orderList = f.querySelector('.iFieldOrder')
-            for (var i = 1; i <= selectorLength; i++) {
+            for (var i = 0; i <= selectorLength; i++) {
                 var option = document.createElement("option");
-                option.value = i;
-                option.text = i;
+                option.value = (i == 0 ? '' : i);
+                option.text = (i == 0 ? '' : i);
                 orderList.appendChild(option);
             }
             orderList.value = j + 1;
@@ -117,36 +113,38 @@ function add_div(target,cl,id,iHTML){
 }
 function add_group(path){
     add_div('entries', 'iPath', path, '<b>' + path.substring(1, path.length - 1) + '</b>'
-                                + '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_set_all(\''+ path +'\',true)">Check all</a>'
-                                + '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_set_all(\''+ path +'\',false)">Uncheck all</a>'
-                                + (path == '/' ? '' : '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_prefix(\''+ path +'\',true)">Add prefix</a>')
-                                + (path == '/' ? '' : '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_prefix(\''+ path +'\',false)">Remove prefix</a>'));
+                                + '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_set_all(this,\''+ path +'\',true)">Check all</a>'
+                                + '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_set_all(this,\''+ path +'\',false)">Uncheck all</a>'
+                                + (path == '/' ? '' : '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_prefix(this,\''+ path +'\',true)">Add prefix</a>')
+                                + (path == '/' ? '' : '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_prefix(this,\''+ path +'\',false)">Remove prefix</a>'));
 }
 function add_field(path, field) {
-    add_div(path,'iField',path + field, '<input id="i' + path + field + '-field_name" class="iFieldName" />'
-                    + '<input id="i' + path + field + '-short_name" class="iShortName" />'
-                    + '<input id="i' + path + field + '-print" class="iFieldPrint" type="checkbox" checked/>'
-                    + '<select name="i' + path + field + '-order" id="i' + path + field + '-order" class="iFieldOrder""></select>'
-                    + '<select class="iFieldMsgKeys"><option value=""></option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>'
-                    + '<input class="iFieldOrderField" type="checkbox"/>'
-                    + '<input class="iFieldDateField" type="checkbox"/>'
+    add_div(path,'iField',path + field, '<input class="iFieldName" onchange="build_template()"/>'
+                    + '<input class="iShortName" onchange="build_template()"/>'
+                    + '<input class="iFieldPrint" type="checkbox" checked onchange="build_template()"/>'
+                    + '<select class="iFieldOrder" onchange="field_key_switch(this)"></select>'
+                    + '<select class="iFieldMsgKeys" onchange="field_key_switch(this)"><option value=""></option><option value=1>1</option><option value=2>2</option><option value=3>3</option><option value=4>4</option><option value=5>5</option></select>'
+                    + '<input class="iFieldOrderField" type="checkbox" onchange="build_template()"/>'
+                    + '<input class="iFieldDateField" type="checkbox" onchange="build_template()"/>'
                     + ' ' + field);
 }
-function mod_set_all(path, state){
-    for (var f of document.getElementById(path).querySelectorAll('.iField')){
+function mod_set_all(e, path, state){
+    for (var f of e.parentNode.querySelectorAll('.iField')){
         f.querySelector('.iFieldPrint').checked = state;
     }
+    build_template();
 }
-function mod_prefix(path, state){
+function mod_prefix(e, path, state){
     p = path.substring(1, path.length - 1);
     prefix = p.substring(p.search(/([^\/]*)$/), p.length);
     var re = new RegExp('^' + prefix + '_','');
-    for (var f of document.getElementById(path).querySelectorAll('.iField')){
+    for (var f of e.parentNode.querySelectorAll('.iField')){
         f.querySelector('.iShortName').value = ( state ? prefix + '_' + f.querySelector('.iShortName').value : f.querySelector('.iShortName').value.replace(re , ''));
     }
+    build_template();
 }
 function build_template(){
-    template_json = {"name": "",
+    template_json = {"name": document.getElementById('iSchemaName').value,
         "topic_name_field": "metadata/event_type",
         "valid_from": 1492000000000,
         "valid_until": 0,
@@ -163,41 +161,69 @@ function build_template(){
             "fields": []
         },
         "msg_objects": []};
-    object_json = {"object_name": "","fields": []};
-    field_json = {"field_name": "",
-                    "short_name": "",
-                    "order": 1,
-                    "print": true};
 
     var paths = entries_div.querySelectorAll('.iPath');
-    for (var i = 0; i < paths.length; i++){
-        var p = paths[i];
-        var fields = p.querySelectorAll('.iField');
-        var selectorLength = fields.length;
+    for (var p of paths){
         var p_name =  p.id.substring(1, p.id.length - 1);
         var object_json = {"object_name": (p_name == '/' ? '' : p_name), "fields":[]};
-        for (var j = 0; j < fields.length; j++){
-            f = fields[j]
-            var field_json = {};
-            field_json.field_name = f.querySelector('.iFieldName').value;
-            field_json.short_name = f.querySelector('.iShortName').value;
-            field_json.order = f.querySelector('.iFieldOrder').value;
-            field_json.print = f.querySelector('.iFieldPrint').checked;
-            object_json.fields[j] = field_json;
+        var key_object_json = {"object_name": (p_name == '/' ? '' : p_name), "fields":[]};
+        for (var f of p.querySelectorAll('.iField')){
+            var key_field_json = {};
+            if (f.querySelector('.iFieldMsgKeys').value == '' || p_name == 'metadata') {
+                var field_json = {};
+                field_json.field_name = f.querySelector('.iFieldName').value;
+                field_json.short_name = f.querySelector('.iShortName').value;
+                field_json.print = f.querySelector('.iFieldPrint').checked;
+                field_json.order = f.querySelector('.iFieldOrder').value;
+                object_json.fields[object_json.fields.length] = field_json;
+            }
+            if (f.querySelector('.iFieldMsgKeys').value != ''){
+                var key_field_json = {};
+                key_field_json.field_name = f.querySelector('.iFieldName').value;
+                key_field_json.short_name = f.querySelector('.iShortName').value;
+                key_field_json.print = f.querySelector('.iFieldPrint').checked;
+                key_field_json.order = f.querySelector('.iFieldMsgKeys').value;
+                key_object_json.fields[key_object_json.fields.length] = key_field_json;
+            }
             if (f.querySelector('.iFieldDateField').checked)
                 template_json.date_field = p_name + '/' + f.querySelector('.iFieldName').value;
             if (f.querySelector('.iFieldOrderField').checked)
                 template_json.order_field.field_name = p_name + '/' + f.querySelector('.iFieldName').value;
-//            if (f.querySelector('.iFieldMsgKeys').value != '')
-//                template_json.msg_keys[f.querySelector('.iFieldMsgKeys').value] = p_name + '/' + f.querySelector('.iFieldName').value;
-            
         }
-        if (p_name == 'metadata')
-            template_json.msg_meta = object_json;
-        else
-            template_json.msg_objects[i] = object_json;
+        if (object_json.fields.length > 0){
+            object_json.fields.sort(function(a, b) {return parseInt(a.order) - parseInt(b.order);});
+            for (var o = 0; o < object_json.fields.length; o++) {
+                object_json.fields[o].order = o + 1;
+            }
+            if (p_name == 'metadata')
+                template_json.msg_meta = object_json;
+            else template_json.msg_objects[template_json.msg_objects.length] = object_json;
+        }
+        if (key_object_json.fields.length > 0)
+            template_json.msg_keys[template_json.msg_keys.length] = key_object_json;
     }
-    alert(JSON.stringify(template_json, null, 4));
+    partitioning_key = [];
+    for (var i = 0 ; i < template_json.msg_keys.length ; i++) {
+        template_json.msg_keys[i].fields.sort(function(a, b) {return parseInt(a.order) - parseInt(b.order);});
+        for (var j = 0 ; j < template_json.msg_keys[i].fields.length ; j++){
+            partitioning_key[template_json.msg_keys[i].fields[j].order - 1] = (template_json.msg_keys[i].object_name != '' ? template_json.msg_keys[i].object_name + '/' : '') + template_json.msg_keys[i].fields[j].field_name;
+            template_json.msg_keys[i].fields[j].order = j + 1;
+        }
+    }
+    partitioning_key_clean = []
+    for (var pk in partitioning_key) {
+        if (pk != undefined)
+            partitioning_key_clean.push(partitioning_key[pk]);
+    }
+
+    template_json.partitioning_key = partitioning_key_clean.toString();
+    document.getElementById('output_area').value = JSON.stringify(template_json, null, 4);
+    document.getElementById('output_area').style.display = 'block';
+}
+function field_key_switch(e){
+    if (e.value != '')
+        e.parentNode.querySelector('.' + (e.className == 'iFieldMsgKeys'? 'iFieldOrder' : 'iFieldMsgKeys')).value = '';
+    build_template();
 }
 show_hide_ta();
 </script>
