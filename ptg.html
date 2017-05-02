@@ -101,7 +101,8 @@ function process_props(path, props, defs){
             add_field(path, p);
         else if (props[p].hasOwnProperty('$ref'))
             process_props(path + p + '/', defs[props[p]['$ref'].replace(regDef, '')].properties, defs);
-        else add_field(path, p + ' ****UNDEFINED****');
+        else if (p != 'required') 
+            add_field(path, p + ' ****UNDEFINED****');
     }
 }
 function add_div(target,cl,id,iHTML){
