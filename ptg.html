@@ -28,7 +28,6 @@
 <textarea id="output_area" rows="36"></textarea>
 <script type="text/javascript">
 
-var regKeys = /^(\s+)([^\n:]*)(:\s*)/gm;
 var regDef = /(?:\#\/definitions\/)/
 var entries_div = document.getElementById('entries');
 document.getElementById('output_area').style.display = 'none';
@@ -44,11 +43,10 @@ function show_hide_ta(){
 function process_schema(){
     ta = document.getElementById('input_area');
     ta.style.display = 'none';
-    schema_processed = ta.value.replace(regKeys,'$1"$2"$3').replace(/\\/g,'\\\\');
     entries_div.innerHTML = '<div id="Header1"><div class="iFieldName">field_name</div><div class="iShortName">short_name</div>'
                             + '<div class="iFieldPrint">print</div><div class="iFieldOrder">order</div><div class="iFieldMsgKeys">msg_keys</div>'
                             + '<div class="iFieldOrderField">order_field</div><div class="iFieldDateField">date_field</div> Original field name</div>';
-    var schema = JSON.parse(schema_processed);
+    var schema = JSON.parse(ta.value);
     add_group('/metadata/');
     add_field('/metadata/','occurred_at');
     add_field('/metadata/','eid');
@@ -101,7 +99,7 @@ function process_props(path, props, defs){
             add_field(path, p);
         else if (props[p].hasOwnProperty('$ref'))
             process_props(path + p + '/', defs[props[p]['$ref'].replace(regDef, '')].properties, defs);
-        else if (p != 'required') 
+        else if (p != 'required')
             add_field(path, p + ' ****UNDEFINED****');
     }
 }
