@@ -330,7 +330,7 @@ function parent_attributes_changed(e){
                 if (! arr.querySelector('#' + p.id.replace(/\//g, '\\\/')))
                     add_group(arr.id, p.id);
                 for (var f of p.querySelectorAll('.iField'))
-                    add_field(arr.id, p.id, f.id.substring(1, f.id.length), true);
+                    add_field(arr.id, p.id, f.id.replace(/^[a-z_/]*\//, ''), true);
             }
         }
     }
