@@ -4,18 +4,22 @@
 <meta charset="UTF-8">
 <style type="text/css">
     #top {display: flex;flex-direction: row;flex-grow:1;width: 100%}
-    #entries {width: 100%}
+    .ioBlock {display: flex;flex-direction: row;flex-grow:1;width: 100%}
+    .iOut {width: 100%; flex: 1}
+    #entries, .iArray {width: 100%}
     #iSchemaName, .iArrayTemplate {width: 500px}
     .iFieldName, .iShortName {width: 250px}
     .iFieldOrder,.iFieldPrint {width: 60px}
     .iFieldMsgKeys {width: 80px}
     .iFieldOrderField {width: 100px}
     .iFieldParentField {width: 150px}
-    .iField {display: flex;flex-direction: row;flex-grow:1;width: 100%}
-    #Header1 {display: inline-flex;flex-direction: row;}
+    .iField {display: flex;flex-direction: row;flex-grow:1}
+    .Header1 {display: inline-flex;flex-direction: row;}
     div.iFieldName, div.iShortName, div.iFieldPrint {padding-right: 10px}
     div.iFieldPrint, div.iFieldParentField, div.iFieldOrderField {text-align: center}
-    textarea { width: 100%; }
+    textarea { width: 100%; height: 100%; box-sizing: border-box;}
+    .clickControl { color: blue;padding-left: 5px }
+
 </style>
 </head>
 <body>
@@ -26,140 +30,170 @@
     <input id="chDefaultMetadata" type="checkbox" checked />Default metadata import properties
 </div>
 <textarea id="input_area" rows="16"></textarea>
-<div id="entries"></div>
+<div id="main"></div>
 <br>
 <div id="arrays"></div>
 <br>
-<textarea id="output_area" rows="36"></textarea>
 <script type="text/javascript">
 var regDef = /(?:\#\/definitions\/)/
-var entries_div = document.getElementById('entries');
 var arrays_div = document.getElementById('arrays');
-document.getElementById('output_area').style.display = 'none';
 
 function show_hide_ta(){
     var TA = document.getElementById('input_area');
-    if(TA.style.display == 'block')
+    if(TA.style.display == 'flex')
         TA.style.display = 'none';
     else
-        TA.style.display = 'block';
+        TA.style.display = 'flex';
 }
 
+function show_hide_group(e){
+    e.innerHTML = e.innerHTML == '+' ? '-' : '+';
+    e.parentNode.querySelector('#' + e.parentNode.id.replace(/\//g, '\\\/') + '-block').style.display = e.innerHTML == '-' ? 'flex' : 'none'
+}
+
+function add_sub(sub){
+    if (sub == 'entries'){
+        var parent = 'main';
+        var bclass = 'iEntries';
+        var iHtml = '<div class="Header1"><div class="iFieldName">field_name</div><div class="iShortName">short_name</div>'
+                    + '<div class="iFieldPrint">print</div><div class="iFieldOrder">order</div><div class="iFieldMsgKeys">msg_keys</div>'
+                    + '<div class="iFieldOrderField">order_field</div><div class="iFieldParentField">parent_attribute</div> Original field name</div>';
+    } else {
+        var parent = 'arrays';
+        var bclass = 'iArray';
+        var iHtml = '<a class="clickControl" style="font-family:monospace" href="#" onclick="show_hide_group(this)">-</a>'
+                + '<input type="checkbox" checked class="iFieldPrintArray" onchange="build_templates()"">'
+                + ' parent_attributes<select class="iFieldParentAttributes" onchange="parent_attributes_changed(this)" value="SELECTED"></option><option value="SELECTED">SELECTED</option><option value="ALL">ALL</option><option value="NONE">NONE</option></select>'
+                + ' on_empty_array<select class="iFieldOnEmptyArray" onchange="build_templates()" value="DONT_PROCESS"></option><option value="DONT_PROCESS">DONT_PROCESS</option><option value="INSERT_RECORD">INSERT_RECORD</option></select>'
+                + '<b>' + sub + '</b>'
+                + '<br><input class="iArrayTemplate" onchange="build_templates()" value="flux.' + document.getElementById('iSchemaName').value + sub.replace(/\//g, '_') +'"/>';
+    }
+    add_div(parent,'', bclass, sub, iHtml);
+    add_div(parent, sub, 'ioBlock', sub + '-block', '')
+    add_div(parent, sub + '-block', bclass + 'Contents', sub + '-content', '')
+    add_div(parent, sub + '-block', 'iOut', sub + '-out', '<textarea id="' + sub + '_out" rows="16"></textarea>')
+    add_group(sub, '/metadata/');
+    add_field(sub, '/metadata/','occurred_at', true);
+    add_field(sub, '/metadata/','eid', true);
+    add_field(sub, '/metadata/','flow_id', document.getElementById('chDefaultMetadata').checked ? false : true);
+    add_field(sub, '/metadata/','received_at', document.getElementById('chDefaultMetadata').checked ? false : true);
+    add_group(sub, '/');
+    if (sub != 'entries')
+        add_field(sub, '/','parent_eid', true);
+}
 function process_schema(){
+    document.getElementById('main').innerHTML = '';
     arrays_div.style.display = 'none';
     arrays_div.innerHTML = '<b>Arrays</b><br>'
     ta = document.getElementById('input_area');
     ta.style.display = 'none';
-    entries_div.innerHTML = '<div id="Header1"><div class="iFieldName">field_name</div><div class="iShortName">short_name</div>'
-                            + '<div class="iFieldPrint">print</div><div class="iFieldOrder">order</div><div class="iFieldMsgKeys">msg_keys</div>'
-                            + '<div class="iFieldOrderField">order_field</div><div class="iFieldParentField">parent_attribute</div> Original field name</div>';
+    add_sub('entries');
     var schema = JSON.parse(ta.value);
-    add_group('/metadata/');
-    add_field('/metadata/','occurred_at');
-    add_field('/metadata/','eid');
-    add_field('/metadata/','flow_id');
-    add_field('/metadata/','received_at');
-
-    process_props('/', schema.properties, schema.definitions);
-    var paths = entries_div.querySelectorAll('.iPath');
-    var selectorLength = 0;
-    var selectorPosition = 0;
-    for (var p of paths) {
-        var fields = p.querySelectorAll('.iField');
-        if (p.id != '/metadata/')
-            selectorLength += fields.length;
-    }
-    for (var p of paths) {
-        var fields = p.querySelectorAll('.iField');
-        for (var j = 0; j < fields.length; j++){
-            f = fields[j]
-            f.querySelector('.iFieldName').value = f.id.replace(/(.*\/)([^\/]*)$/,'$2');
-            f.querySelector('.iShortName').value = f.id.replace(/(.*\/)([^\/]*)$/,'$2');
-            orderList = f.querySelector('.iFieldOrder')
-            for (var i = 0; i <= selectorLength; i++) {
-                var option = document.createElement("option");
-                option.value = (i == 0 ? '' : i);
-                option.text = (i == 0 ? '' : i);
-                orderList.appendChild(option);
-            }
-            if (p.id != '/metadata/') {
-                selectorPosition += 1;
-                orderList.value = selectorPosition;
-            } else orderList.value = j + 1;
-        }
-    }
-    if (document.getElementById('chDefaultMetadata').checked){
-        document.getElementById('/metadata/occurred_at').querySelector('.iFieldOrderField').checked = true;
-        document.getElementById('/metadata/occurred_at').querySelector('.iFieldParentField').checked = false;
-        document.getElementById('/metadata/flow_id').querySelector('.iFieldPrint').checked = false;
-        document.getElementById('/metadata/received_at').querySelector('.iFieldPrint').checked = false;
-    }
-    build_template();
+    process_props('entries','/', schema.properties, schema.definitions);
+    numerate_fields('entries');
+    for (var a of document.querySelectorAll('.iArray'))
+        numerate_fields(a.id);
+    build_templates();
 }
 
-function process_props(path, props, defs){
-    if (document.getElementById(path) == undefined)
-        add_group(path);
+function numerate_fields(target){
+    var numerate_div = document.getElementById(target);
+    var selectorLength = 0;
+    var selectorPosition = 0;
+    var selectorPositionMetadata = 0;
+    selectorLength = numerate_div.querySelectorAll('.iField').length - 4; //4 metadata fields
+    for (var f of numerate_div.querySelectorAll('.iField')){
+        if (f.parentNode.parentNode.parentNode.id == '/metadata/')
+            selectorPositionMetadata += 1;
+        else
+            selectorPosition += 1;
+        orderList = f.querySelector('.iFieldOrder');
+        for (var i = 0; i <= (f.parentNode.parentNode.parentNode.id == '/metadata/' ? 4 : selectorLength); i++) {
+            var option = document.createElement("option");
+            option.value = (i == 0 ? '' : i);
+            option.text = (i == 0 ? '' : i);
+            orderList.appendChild(option);
+        }
+        orderList.value = f.parentNode.parentNode.parentNode.id == '/metadata/' ? selectorPositionMetadata : selectorPosition;
+    }
+
+}
+function process_props(sub, path, props, defs){
+    if (document.querySelector('#' + sub.replace(/\//g, '\\\/')).querySelector('#' + path.replace(/\//g, '\\\/')) == undefined)
+        add_group(sub,path);
     for (p in props) {
         if (props[p].hasOwnProperty('type'))
             if (props[p].type == 'array') {
                 arrays_div.style.display = 'block';
-                add_array(path, p);
+                add_sub(path + p);
+                if (props[p].items.hasOwnProperty('$ref'))
+                    process_props(path + p, '/value_at' + path.replace(/\//g, '_') + p + '/', defs[props[p]['items']['$ref'].replace(regDef, '')].properties, defs);
+                else if (props[p].items.hasOwnProperty('type') && props[p].items.type == 'object')
+                    process_props(path + p, '/value_at' + path.replace(/\//g, '_') + p + '/', props[p].items.properties, defs);
+                else {
+                    add_group(path + p, '/value_at' + path.replace(/\//g, '_') + p + '/');
+                    add_field(path + p, '/value_at' + path.replace(/\//g, '_') + p + '/', 'default_field', true);
+                }
             }
             else if (props[p].type == 'object')
-                process_props(path + p + '/', props[p].properties, defs);
-            else add_field(path, p);
+                process_props(sub, path + p + '/', props[p].properties, defs);
+            else add_field(sub, path, p, true);
         else if (props[p].hasOwnProperty('enum'))
-            add_field(path, p);
+            add_field(sub, path, p, true);
         else if (props[p].hasOwnProperty('$ref'))
-            process_props(path + p + '/', defs[props[p]['$ref'].replace(regDef, '')].properties, defs);
+            process_props(sub, path + p + '/', defs[props[p]['$ref'].replace(regDef, '')].properties, defs);
         else if (p != 'required')
-            add_field(path, p + ' ****UNDEFINED****');
+            add_field(sub, path, p + ' ****UNDEFINED****', false);
     }
 }
-function add_div(target,cl,id,iHTML){
+
+function add_div(sub, target, cl, id, iHTML){
     var tmp_div = document.createElement('div');
     tmp_div.className = cl;
     tmp_div.id = id;
     tmp_div.innerHTML = iHTML;
-    document.getElementById(target).appendChild(tmp_div);
+    if (target == '')
+        document.querySelector('#' + sub.replace(/\//g, '\\\/')).appendChild(tmp_div);
+    else
+        document.querySelector('#' + sub.replace(/\//g, '\\\/')).querySelector('#' + target.replace(/\//g, '\\\/')).appendChild(tmp_div);
 }
-function add_group(path){
-    add_div('entries', 'iPath', path, '<b>' + path.substring(0, path.length == 1 ? 1 : path.length - 1) + '</b>'
-                                + '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_set_all(this,\''+ path +'\',true)">Check all</a>'
-                                + '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_set_all(this,\''+ path +'\',false)">Uncheck all</a>'
-                                + (path == '/' ? '' : '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_prefix(this,\''+ path +'\',true)">Add prefix</a>')
-                                + (path == '/' ? '' : '<a style="color: blue;padding-left: 5px" href="#" onclick="mod_prefix(this,\''+ path +'\',false)">Remove prefix</a>'));
-}
-function add_array(path, array){
-    add_div('arrays', 'iArray', path + array, '<input type="checkbox" checked class="iFieldPrintArray" onchange="build_template()"">' + '<b>' + path + array + '</b>'
-    + ' parent_attributes<select class="iFieldParentAttributes" onchange="build_template()" value="SELECTED"></option><option value="SELECTED">SELECTED</option><option value="ALL">ALL</option><option value="NONE">NONE</option></select>'
-    + ' on_empty_array<select class="iFieldOnEmptyArray" onchange="build_template()" value="DONT_PROCESS"></option><option value="DONT_PROCESS">DONT_PROCESS</option><option value="INSERT_RECORD">INSERT_RECORD</option></select>'
-    + '<br><input class="iArrayTemplate" onchange="build_template()" value="flux.' + document.getElementById('iSchemaName').value + path.replace(/\//, '_') + array +'"/>'
+
+function add_group(sub, path){
+    add_div(sub + '-content', '', 'iPath', path, '<a class="clickControl" style="font-family:monospace" href="#" onclick="show_hide_group(this)">-</a>'
+                                + '<a class="clickControl" href="#" onclick="mod_set_all(this,\''+ path +'\',true)">Check all</a>'
+                                + '<a class="clickControl" href="#" onclick="mod_set_all(this,\''+ path +'\',false)">Uncheck all</a>'
+                                + (path == '/' ? '' : '<a class="clickControl" href="#" onclick="mod_prefix(this,\''+ path +'\',true)">Add prefix</a>')
+                                + (path == '/' ? '' : '<a class="clickControl" href="#" onclick="mod_prefix(this,\''+ path +'\',false)">Remove prefix</a>')
+                                + ' <b>' + path.substring(0, path.length == 1 ? 1 : path.length - 1) + '</b>'
     );
+    add_div(sub + '-block', path, 'iPathBlock', path + '-block', '')
+    add_div(sub + '-content', path + '-block', 'iPathContents', path + '-content', '')
 }
-function add_field(path, field) {
-    add_div(path,'iField',path + field, '<input class="iFieldName" onchange="build_template()"/>'
-                    + '<input class="iShortName" onchange="build_template()"/>'
-                    + '<input class="iFieldPrint" type="checkbox" checked onchange="build_template()"/>'
+
+function add_field(sub,path, field, print) {
+    add_div(sub,path + '-content','iField',path + field, '<input class="iFieldName" onchange="build_templates()" value="' + field +'"/>'
+                    + '<input class="iShortName" onchange="build_templates()" value="' + field +'"/>'
+                    + '<input class="iFieldPrint" type="checkbox" ' + (print ? 'checked' : '') + ' onchange="build_templates()"/>'
                     + '<select class="iFieldOrder" onchange="field_key_switch(this)"></select>'
                     + '<select class="iFieldMsgKeys" onchange="field_key_switch(this)"><option value=""></option><option value=1>1</option><option value=2>2</option><option value=3>3</option><option value=4>4</option><option value=5>5</option></select>'
-                    + '<input type="radio" value="" class="iFieldOrderField" name="group1" onchange="build_template()"">'
-                    + '<input type="checkbox" value="" class="iFieldParentField" onchange="build_template()"">'
+                    + '<input type="radio" value="" class="iFieldOrderField" name="group1" onchange="build_templates()">'
+                    + (sub == 'entries' ? '<input type="checkbox" value="" class="iFieldParentField" onchange="parent_property_changed(this)">' : '')
                     + ' ' + field);
 }
+
 function mod_set_all(e, path, state){
     for (var f of e.parentNode.querySelectorAll('.iField'))
         f.querySelector('.iFieldPrint').checked = state;
-    build_template();
+    build_templates();
 }
+
 function mod_prefix(e, path, state){
     p = path.substring(1, path.length - 1);
     prefix = p.substring(p.search(/([^\/]*)$/), p.length);
     var re = new RegExp('^' + prefix + '_','');
     for (var f of e.parentNode.querySelectorAll('.iField'))
         f.querySelector('.iShortName').value = ( state ? prefix + '_' + f.querySelector('.iShortName').value : f.querySelector('.iShortName').value.replace(re , ''));
-    build_template();
+    build_templates();
 }
 
 function sort_n_reorder(j){
@@ -168,70 +202,147 @@ function sort_n_reorder(j){
         j[o].order = o + 1;
 }
 
-function build_template(){
-    template_json = {"name": document.getElementById('iSchemaName').value,
-        "msg_keys": [],
-        "order_field": {
-            "field_name": "",
-            "data_type": "date"
-        },
-        "msg_meta": [],
-        "msg_objects": []};
-    var parent_attributes_list = [];
-    var paths = entries_div.querySelectorAll('.iPath');
-    for (var p of paths){
-        for (var f of p.querySelectorAll('.iField')){
-            var field_json = {
-                "field_name": p.id + f.querySelector('.iFieldName').value,
-                "short_name": f.querySelector('.iShortName').value,
-                "print": f.querySelector('.iFieldPrint').checked,
-                "order": f.querySelector('.iFieldMsgKeys').value != '' ? f.querySelector('.iFieldMsgKeys').value : f.querySelector('.iFieldOrder').value
-            };
-
-            if (f.querySelector('.iFieldOrderField').checked)
-                template_json.order_field.field_name = p.id + f.querySelector('.iFieldName').value;
-
-            if (f.querySelector('.iFieldParentField').checked)
-                parent_attributes_list.push(p.id + f.querySelector('.iFieldName').value);
-
-            if (f.querySelector('.iFieldMsgKeys').value != '')
-                template_json.msg_keys[template_json.msg_keys.length] = field_json
-            else if (p.id == '/metadata/')
-                template_json.msg_meta[template_json.msg_meta.length] = field_json
-            else if (f.querySelector('.iFieldPrint').checked)
-                template_json.msg_objects[template_json.msg_objects.length] = field_json
-        }
+function build_templates(){
+    build_one_template('entries');
+    for (var a of arrays_div.querySelectorAll('.iArray')) {
+        build_one_template(a.id);
     }
-
-    sort_n_reorder(template_json.msg_meta);
-    sort_n_reorder(template_json.msg_keys);
-    sort_n_reorder(template_json.msg_objects);
-    var arrays = arrays_div.querySelectorAll('.iArray');
-    var arrays_json = [];
-    for (var a of arrays) {
-        if (a.querySelector('.iFieldPrintArray').checked) {
-            var temp_array_json = {
-                "path_to_array":  a.id,
-                "on_empty_array":  a.querySelector('.iFieldOnEmptyArray').value,
-                "parent_attributes": a.querySelector('.iFieldParentAttributes').value,
-                "template_name": a.querySelector('.iArrayTemplate').value
-            }
-            if (a.querySelector('.iFieldParentAttributes').value == 'SELECTED')
-                temp_array_json.parent_attributes_list = parent_attributes_list;
-            arrays_json.push(temp_array_json);
-
-        }
-    }
-    if (arrays_json.length > 0)
-        template_json['arrays'] = arrays_json;
-
-    document.getElementById('output_area').value = JSON.stringify(template_json, null, 4);
-    document.getElementById('output_area').style.display = 'block';
 }
+
+function build_one_template(sub){
+    var sub_div = document.getElementById(sub);
+    if (sub == 'entries' || sub_div.querySelector('.iFieldPrintArray').checked){
+        template_json = {"name": sub == 'entries' ? document.getElementById('iSchemaName').value : sub_div.querySelector('.iArrayTemplate').value,
+            "msg_keys": [],
+            "order_field": {
+                "field_name": "",
+                "data_type": "date"
+            },
+            "msg_meta": [],
+            "msg_objects": []};
+        var parent_attributes_list = [];
+        var paths = sub_div.querySelectorAll('.iPath');
+        for (var p of paths){
+            for (var f of p.querySelectorAll('.iField')){
+                var field_json = {
+                    "field_name": p.id + f.querySelector('.iFieldName').value,
+                    "short_name": f.querySelector('.iShortName').value,
+                    "print": f.querySelector('.iFieldMsgKeys').value == '' ? f.querySelector('.iFieldPrint').checked : false,
+                    "order": f.querySelector('.iFieldOrder').value == '' ? 1 : f.querySelector('.iFieldOrder').value
+                };
+
+                if (f.querySelector('.iFieldOrderField').checked)
+                    template_json.order_field.field_name = p.id + f.querySelector('.iFieldName').value;
+
+                if (sub == 'entries' && f.querySelector('.iFieldParentField').checked)
+                    parent_attributes_list.push(p.id + f.querySelector('.iFieldName').value);
+
+                if (p.id == '/metadata/'){
+                    field_json.print = f.querySelector('.iFieldMsgKeys').value == '' && f.querySelector('.iFieldPrint').checked;
+                    template_json.msg_meta.push(field_json)
+                } else if (f.querySelector('.iFieldPrint').checked)
+                    template_json.msg_objects.push(field_json);
+
+                if (f.querySelector('.iFieldMsgKeys').value != ''){
+                    msg_field_json = Object.assign({}, field_json, {})
+                    msg_field_json.print = true;
+                    msg_field_json.order = f.querySelector('.iFieldMsgKeys').value;
+                    template_json.msg_keys.push(msg_field_json)
+                }
+            }
+        }
+
+        sort_n_reorder(template_json.msg_meta);
+        sort_n_reorder(template_json.msg_keys);
+        sort_n_reorder(template_json.msg_objects);
+        if (sub == 'entries'){
+            var arrays_json = [];
+            for (var a of arrays_div.querySelectorAll('.iArray')) {
+                if (a.querySelector('.iFieldPrintArray').checked) {
+                    var temp_array_json = {
+                        "path_to_array":  a.id,
+                        "on_empty_array":  a.querySelector('.iFieldOnEmptyArray').value,
+                        "parent_attributes": a.querySelector('.iFieldParentAttributes').value,
+                        "template_name": a.querySelector('.iArrayTemplate').value
+                    }
+                    if (a.querySelector('.iFieldParentAttributes').value == 'SELECTED')
+                        temp_array_json.parent_attributes_list = parent_attributes_list;
+                    arrays_json.push(temp_array_json);
+
+                }
+            }
+            if (arrays_json.length > 0)
+                template_json['arrays'] = arrays_json;
+        }
+        document.getElementById(sub + '_out').value = JSON.stringify(template_json, null, 4);
+        document.getElementById(sub + '_out').style.display = 'flex';
+    } else
+        document.getElementById(sub + '_out').value = '';
+}
+
+function parent_property_changed(e){
+    for (var a of arrays_div.querySelectorAll('.iArray')) {
+        if (a.querySelector('.iFieldParentAttributes').value == 'SELECTED'){
+            if (e.checked)
+                add_field(a.id, '/', 'parent' + e.parentNode.id.replace(/\//g, '_'), true);
+            else
+                a.querySelector('#\\\/-content').removeChild(a.querySelector('#\\/parent' + e.parentNode.id.replace(/\//g, '_')));
+            numerate_fields(a.id);
+        }
+    }
+    build_templates();
+}
+
+function parent_attributes_changed(e){
+    var arr = e.parentNode;
+    for (var p of arr.querySelectorAll('.iPath')){
+        if (p.id == '\/metadata\/')
+            null;
+        else if (p.id == '\/'){
+            for (var f of arr.querySelector('#\\\/-content').querySelectorAll('.iField'))
+                if (f.id != '\/parent_eid')
+                    arr.querySelector('#\\\/-content').removeChild(f);
+        } else if (e.value == 'ALL' && p.id.startsWith('\/value_at_')){
+            p.id = p.id.replace(/^\/value\_at\_[a-z_]*/,arr.id);
+            p.querySelector('b').innerHTML = p.id.replace(/^\/value\_at\_[a-z_]*/,arr.id);
+            for (var d of p.querySelectorAll('div'))
+                d.id = d.id.replace(/^\/value\_at\_[a-z_]*/,arr.id);
+        } else if (e.value != 'ALL' && p.id.startsWith(arr.id)){
+            p.id = p.id.replace(arr.id, '/value_at' + arr.id.replace(/\//g, '_'));
+            p.querySelector('b').innerHTML = p.id.replace(arr.id, '/value_at' + arr.id.replace(/\//g, '_'));
+            for (var d of p.querySelectorAll('div'))
+                d.id = d.id.replace(arr.id, '/value_at' + arr.id.replace(/\//g, '_'));
+        } else if (e.value != 'ALL' && ! p.id.startsWith('\/value_at_')) {
+            p.parentNode.removeChild(p);
+        }
+    }
+
+    if (e.value == 'SELECTED'){
+        for (var f of document.getElementById('entries').querySelectorAll('.iField')){
+            if (f.querySelector('.iFieldParentField').checked)
+                add_field(arr.id, '/', 'parent' + f.id.replace(/\//g, '_'), true);
+        }
+    }
+
+    if (e.value == 'ALL'){
+        for (var p of document.getElementById('entries').querySelectorAll('.iPath')){
+            if (p.id != '\/metadata\/'){
+                if (! arr.querySelector('#' + p.id.replace(/\//g, '\\\/')))
+                    add_group(arr.id, p.id);
+                for (var f of p.querySelectorAll('.iField'))
+                    add_field(arr.id, p.id, f.id.substring(1, f.id.length), true);
+            }
+        }
+    }
+    numerate_fields(arr.id);
+    build_one_template(arr.id);
+    build_one_template('entries');
+}
+
 function field_key_switch(e){
     if (e.value != '')
         e.parentNode.querySelector('.' + (e.className == 'iFieldMsgKeys'? 'iFieldOrder' : 'iFieldMsgKeys')).value = '';
-    build_template();
+    build_templates();
 }
 show_hide_ta();
 </script>
