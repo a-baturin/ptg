@@ -176,7 +176,7 @@ function add_field(sub,path, field, print) {
                     + '<input class="iFieldPrint" type="checkbox" ' + (print ? 'checked' : '') + ' onchange="build_templates()"/>'
                     + '<select class="iFieldOrder" onchange="field_key_switch(this)"></select>'
                     + '<select class="iFieldMsgKeys" onchange="field_key_switch(this)"><option value=""></option><option value=1>1</option><option value=2>2</option><option value=3>3</option><option value=4>4</option><option value=5>5</option></select>'
-                    + '<input type="radio" value="" class="iFieldOrderField" name="group1" onchange="build_templates()">'
+                    + '<input type="radio" value="" class="iFieldOrderField" name="' + sub + '" onchange="build_templates()">'
                     + (sub == 'entries' ? '<input type="checkbox" value="" class="iFieldParentField" onchange="parent_property_changed(this)">' : '')
                     + ' ' + field);
 }
